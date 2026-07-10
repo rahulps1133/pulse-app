@@ -8,19 +8,19 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
   :root{
-    --bg: #07060C;
-    --panel: #0D0A17;
-    --panel-2: #141026;
-    --grid: #221A38;
-    --grid-strong: #33254E;
-    --text: #ECE9F4;
-    --text-mute: #9A93B0;
-    --text-faint: #5F5876;
-    --amber: #A76CFF;
-    --cyan: #34D8A8;
-    --red: #E2584D;
+    --bg: #060C0E;
+    --panel: #0B1517;
+    --panel-2: #0F1D20;
+    --grid: #172C30;
+    --grid-strong: #234347;
+    --text: #E7F3F1;
+    --text-mute: #8FA8A7;
+    --text-faint: #55696B;
+    --amber: #2DD4BF;
+    --cyan: #7CE7D8;
+    --red: #FF5B54;
     --violet: #B98BE0;
-    --border: #241C3A;
+    --border: #16292C;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", monospace;
     --datefont: "Calibri", "Segoe UI", var(--sans);
@@ -44,7 +44,7 @@
   .card h2{ font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-mute); margin:0 0 10px; font-weight:500; }
 
   .drop{ border:1px dashed var(--grid-strong); border-radius:8px; padding:16px 10px; text-align:center; cursor:pointer; transition:all .15s; }
-  .drop:hover, .drop.drag{ border-color:var(--amber); background:rgba(167,108,255,.08); }
+  .drop:hover, .drop.drag{ border-color:var(--amber); background:rgba(45,212,191,.08); }
   .drop .t1{ font-size:13px; }
   .drop .t2{ font-size:11px; color:var(--text-faint); margin-top:3px; }
   #fileInput{ display:none; }
@@ -52,8 +52,8 @@
   button{ font-family:var(--sans); cursor:pointer; }
   .btn{ width:100%; padding:9px 12px; border-radius:7px; border:1px solid var(--border); background:#182338; color:var(--text); font-size:13px; font-weight:500; transition:all .15s; }
   .btn:hover{ border-color:var(--grid-strong); background:#1d2b47; }
-  .btn.primary{ background:var(--amber); border-color:var(--amber); color:#1E0B33; }
-  .btn.primary:hover{ background:#bb87ff; }
+  .btn.primary{ background:var(--amber); border-color:var(--amber); color:#052220; }
+  .btn.primary:hover{ background:#5ce8d5; }
   .btn.ghost{ background:transparent; }
   .btn-row{ display:flex; gap:8px; }
   .btn-row .btn{ flex:1; }
@@ -77,7 +77,7 @@
   #dateReadout{ font-family:var(--datefont); font-size:14px; color:var(--amber); min-width:96px; text-align:right; }
   .view-toggle{ display:flex; border:1px solid var(--border); border-radius:7px; overflow:hidden; }
   .view-toggle button{ padding:6px 12px; font-size:12px; background:#182338; color:var(--text-mute); border:none; }
-  .view-toggle button.active{ background:var(--amber); color:#1E0B33; font-weight:600; }
+  .view-toggle button.active{ background:var(--amber); color:#052220; font-weight:600; }
 
   .screen{ flex:1; display:none; overflow:auto; position:relative; }
   .screen.active{ display:flex; }
@@ -119,12 +119,26 @@
   .milestone{ position:absolute; top:7px; width:16px; height:16px; transform:translateX(-50%) rotate(45deg); border:1px solid var(--grid-strong); background:rgba(255,255,255,.04); transition: box-shadow .2s, background .2s; }
   .progress-mark{ position:absolute; top:-3px; width:2px; height:22px; border-radius:1px; }
   .cursor-line{ position:absolute; top:0; bottom:0; width:1px; background:var(--amber); z-index:4; box-shadow:0 0 6px var(--amber); pointer-events:none; }
-  .cursor-flag{ position:absolute; top:0; transform:translateX(-50%); background:var(--amber); color:#1E0B33; font-family:var(--datefont); font-size:11px; padding:2px 5px; border-radius:0 0 4px 4px; z-index:6; white-space:nowrap; }
+  .cursor-flag{ position:absolute; top:0; transform:translateX(-50%); background:var(--amber); color:#052220; font-family:var(--datefont); font-size:11px; padding:2px 5px; border-radius:0 0 4px 4px; z-index:6; white-space:nowrap; }
 
   #view3d{ position:absolute; inset:0; display:none; }
   #view3d.active{ display:block; }
   #view3d canvas{ display:block; }
   #hud3d{ position:absolute; left:16px; bottom:16px; font-family:var(--datefont); font-size:13px; color:var(--text-mute); background:rgba(13,10,23,.75); padding:8px 12px; border:1px solid var(--border); border-radius:8px; }
+
+  .active-label{ position:absolute; z-index:8; transform:translate(-50%,-100%); background:var(--panel-2); border:1px solid var(--amber); color:var(--text); font-size:11px; padding:3px 9px; border-radius:6px; white-space:nowrap; pointer-events:none; box-shadow:0 0 12px rgba(45,212,191,.5); display:none; }
+  .active-label::after{ content:""; position:absolute; left:50%; bottom:-9px; width:6px; height:6px; background:var(--amber); border-radius:50%; transform:translateX(-50%); box-shadow:0 0 10px var(--amber); }
+
+  @keyframes conflictPulse{ 0%,100%{ box-shadow:0 0 6px 1px rgba(255,91,84,.55); } 50%{ box-shadow:0 0 18px 5px rgba(255,91,84,.95); } }
+  .bar-fill.conflict, .milestone.conflict{ animation: conflictPulse 1.2s ease-in-out infinite; }
+  .conflict-dot{ position:absolute; top:-7px; width:8px; height:8px; border-radius:50%; background:var(--red); box-shadow:0 0 10px var(--red); animation: conflictPulse 1.2s ease-in-out infinite; z-index:5; }
+
+  @keyframes completeFlash{ 0%{ filter:brightness(1); } 35%{ filter:brightness(1.9); box-shadow:0 0 26px 8px rgba(45,212,191,.95); } 100%{ filter:brightness(1); } }
+  .bar-fill.completed-flash{ animation: completeFlash .7s ease-out; }
+
+  #donutSvg{ width:100%; height:auto; }
+  .donut-legend-row{ display:flex; align-items:center; gap:6px; margin-bottom:4px; font-size:11px; color:var(--text-mute); }
+  .donut-swatch{ width:8px; height:8px; border-radius:2px; flex:none; }
   #hud3d b{ color:var(--amber); }
 
   ::-webkit-scrollbar{ width:10px; height:10px; }
@@ -173,6 +187,17 @@
     <div class="legend-item"><span class="legend-swatch" style="background:var(--cyan)"></span> On/ahead of plan</div>
     <div class="legend-item"><span class="legend-swatch" style="background:var(--red)"></span> Behind plan</div>
     <div class="legend-item"><span class="legend-swatch" style="transform:rotate(45deg);border:1px solid var(--grid-strong);background:transparent"></span> Milestone</div>
+    <div class="legend-item"><span class="legend-swatch" style="background:var(--red); box-shadow:0 0 6px var(--red);"></span> Sequencing conflict (glows)</div>
+  </div>
+
+  <div class="card" id="donutCard" style="display:none;">
+    <h2>Progress</h2>
+    <select id="donutGroupBy" style="margin-bottom:10px;">
+      <option value="group">By Area / Group</option>
+      <option value="phase">By Phase</option>
+    </select>
+    <svg id="donutSvg" viewBox="0 0 160 160"></svg>
+    <div id="donutLegend" style="margin-top:8px;"></div>
   </div>
 
   <div class="footnote">
@@ -235,6 +260,7 @@
     </div>
     <div id="view3d">
       <div id="hud3d">Area <b id="hud3dArea">—</b> · <span id="hud3dDate">—</span></div>
+      <div class="active-label" id="activeLabel3D"></div>
     </div>
   </div>
 </div>
@@ -243,7 +269,7 @@
 (function(){
   "use strict";
 
-  const COLORS = ["#A76CFF","#34D8A8","#6EE7B7","#7C8FFF","#C77DFF","#4FD1C5","#E2937D","#F27FA0"];
+  const COLORS = ["#F2A623","#4FC3F7","#B98BE0","#66D9A6","#E2937D","#7C8FFF","#F27FA0","#C9D96F"];
   const state = {
     rawRows:null, headers:[], tasks:[], groups:[],
     minDate:null, maxDate:null, totalDays:0,
@@ -555,19 +581,50 @@ PCS Working,1/10/2028,,`;
     finalizeTasks(tasks);
   });
 
+  function detectConflicts(tasks){
+    const PHASE_ORDER = ["Sub","Super","Finishing","Beach"];
+    tasks.forEach(t=>{
+      t.conflict = false;
+      if(t.predecessors && t.predecessors.length){
+        t.predecessors.forEach(pid=>{
+          const p = tasks.find(x=>x.id===pid);
+          if(p && p.finish > t.start) t.conflict = true;
+        });
+      }
+    });
+    const byGroup = {};
+    tasks.forEach(t=>{ if(t.phase){ (byGroup[t.group]=byGroup[t.group]||[]).push(t); } });
+    Object.values(byGroup).forEach(arr=>{
+      arr.sort((a,b)=> PHASE_ORDER.indexOf(a.phase)-PHASE_ORDER.indexOf(b.phase));
+      for(let i=1;i<arr.length;i++){
+        const prev=arr[i-1], cur=arr[i];
+        if(PHASE_ORDER.indexOf(prev.phase)>=0 && PHASE_ORDER.indexOf(cur.phase)>=0 && cur.start < prev.finish){
+          cur.conflict = true; prev.conflict = true;
+        }
+      }
+    });
+  }
+
   function finalizeTasks(tasks){
+    detectConflicts(tasks);
     state.tasks = tasks;
     state.groups = [...new Set(tasks.map(t=>t.group))];
     state.minDate = new Date(Math.min(...tasks.map(t=>t.start)));
     state.maxDate = new Date(Math.max(...tasks.map(t=>t.finish)));
     state.totalDays = Math.max(1, daysBetween(state.minDate, state.maxDate));
     state.currentDay = 0;
+    state.flashed = new Set();
+    state.rowTop = {};
+    state._phaseColors = {};
     renderChart();
     init3D();
     setScreen("chartScreen");
-    $("playCard").style.display="block"; $("legendCard").style.display="block"; $("viewToggle").style.display="flex";
+    $("playCard").style.display="block"; $("legendCard").style.display="block"; $("viewToggle").style.display="flex"; $("donutCard").style.display="block";
     $("projName").textContent = `${tasks.length} items`;
     $("projMeta").textContent = `${fmtDate(state.minDate)} → ${fmtDate(state.maxDate)}`;
+    const hasPhases = tasks.some(t=>t.phase);
+    $("donutGroupBy").querySelector('option[value="phase"]').disabled = !hasPhases;
+    renderDonut();
   }
 
   function setScreen(id){
@@ -599,6 +656,7 @@ PCS Working,1/10/2028,,`;
     const rowsWrap = document.createElement("div"); rowsWrap.style.position="relative";
     let y=36;
     state.tasks.forEach(task=>{
+      state.rowTop[task.id] = y;
       const row=document.createElement("div"); row.className="task-row";
       const nameCell=document.createElement("div"); nameCell.className="name-cell";
       nameCell.innerHTML = `<div class="n">${escapeHtml(task.name)}</div><div class="g">${escapeHtml(task.group)}${task.phase?" · "+escapeHtml(task.phase):""}</div>`;
@@ -607,16 +665,20 @@ PCS Working,1/10/2028,,`;
       const left = daysBetween(state.minDate, task.start)*px;
 
       if(task.milestone){
-        const m=document.createElement("div"); m.className="milestone";
+        const m=document.createElement("div"); m.className="milestone"+(task.conflict?" conflict":"");
         m.style.left=left+"px"; m.dataset.taskId=task.id; m.dataset.left=left;
         track.appendChild(m);
       } else {
         const width = Math.max(4, daysBetween(task.start, task.finish)*px);
         const plan=document.createElement("div"); plan.className="bar-plan"; plan.style.left=left+"px"; plan.style.width=width+"px";
         track.appendChild(plan);
-        const fill=document.createElement("div"); fill.className="bar-fill"; fill.style.left=left+"px"; fill.style.top="9px"; fill.style.height="16px";
+        const fill=document.createElement("div"); fill.className="bar-fill"+(task.conflict?" conflict":""); fill.style.left=left+"px"; fill.style.top="9px"; fill.style.height="16px";
         fill.style.background=groupColor(task.group); fill.dataset.taskId=task.id; fill.dataset.left=left; fill.dataset.width=width;
         track.appendChild(fill);
+        if(task.conflict){
+          const dot=document.createElement("div"); dot.className="conflict-dot"; dot.style.left=left+"px";
+          track.appendChild(dot);
+        }
       }
       row.appendChild(track); rowsWrap.appendChild(row);
       y+=34;
@@ -626,7 +688,8 @@ PCS Working,1/10/2028,,`;
     const cursor=document.createElement("div"); cursor.className="cursor-line"; cursor.id="cursorLine";
     cursor.style.height=y+"px"; cursor.style.top="36px";
     const flag=document.createElement("div"); flag.className="cursor-flag"; flag.id="cursorFlag";
-    inner.appendChild(cursor); inner.appendChild(flag);
+    const activeLabel=document.createElement("div"); activeLabel.className="active-label"; activeLabel.id="activeLabel2D";
+    inner.appendChild(cursor); inner.appendChild(flag); inner.appendChild(activeLabel);
 
     updateFrameVisuals();
   }
@@ -639,6 +702,7 @@ PCS Working,1/10/2028,,`;
     if(flag){ flag.style.left=cursorX+"px"; flag.textContent = fmtDate(new Date(state.minDate.getTime()+state.currentDay*dayMs)); }
     $("dateReadout").textContent = fmtDate(new Date(state.minDate.getTime()+state.currentDay*dayMs));
 
+    let leadTask=null, leadX=0, leadTop=0;
     document.querySelectorAll(".bar-fill").forEach(el=>{
       const task = state.tasks.find(t=>t.id==el.dataset.taskId);
       const left=parseFloat(el.dataset.left), fullWidth=parseFloat(el.dataset.width);
@@ -648,9 +712,25 @@ PCS Working,1/10/2028,,`;
       const frac=elapsed/dur;
       el.style.width=(fullWidth*frac)+"px";
       const active = state.currentDay>=sD && state.currentDay<=eD;
-      el.style.setProperty("--fillglow", active?"rgba(167,108,255,.55)":"transparent");
+      el.style.setProperty("--fillglow", active?"rgba(45,212,191,.55)":"transparent");
       el.style.setProperty("--edge", active?"var(--amber)":"transparent");
+      if(active){ leadTask=task; leadX=left+fullWidth*frac; leadTop=state.rowTop[task.id]; }
+      if(frac>=1 && !state.flashed.has(task.id)){
+        state.flashed.add(task.id);
+        el.classList.add("completed-flash");
+        setTimeout(()=>el.classList.remove("completed-flash"), 700);
+        playBeep();
+      }
     });
+    const label2d = $("activeLabel2D");
+    if(label2d){
+      if(leadTask){
+        label2d.style.display = "block";
+        label2d.style.left = leadX+"px";
+        label2d.style.top = (leadTop+7)+"px";
+        label2d.textContent = leadTask.name;
+      } else { label2d.style.display = "none"; }
+    }
     document.querySelectorAll(".milestone").forEach(el=>{
       const task = state.tasks.find(t=>t.id==el.dataset.taskId);
       const sD = daysBetween(state.minDate, task.start);
@@ -661,7 +741,80 @@ PCS Working,1/10/2028,,`;
     });
     $("scrubSlider").value = Math.round((state.currentDay/state.totalDays)*100);
     update3DFrame();
+    renderDonut();
   }
+
+  // ---------- Audio beep on task completion ----------
+  let audioCtx = null;
+  function ensureAudio(){ if(!audioCtx){ try{ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } }
+  function playBeep(){
+    if(!audioCtx) return;
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.type = "sine"; osc.frequency.setValueAtTime(880, t);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.15, t+0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t+0.25);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(t); osc.stop(t+0.26);
+  }
+
+  // ---------- Donut progress ----------
+  function computeFrac(t){
+    if(t.milestone){ const sD=daysBetween(state.minDate,t.start); return state.currentDay>=sD?1:0; }
+    const sD=daysBetween(state.minDate,t.start), eD=daysBetween(state.minDate,t.finish);
+    const dur=Math.max(1,eD-sD);
+    return Math.min(Math.max(state.currentDay-sD,0),dur)/dur;
+  }
+  function donutColor(key, groupBy){
+    if(groupBy==="phase"){
+      if(!(key in state._phaseColors)) state._phaseColors[key] = COLORS[Object.keys(state._phaseColors).length % COLORS.length];
+      return state._phaseColors[key];
+    }
+    return groupColor(key);
+  }
+  function polarToXY(cx,cy,r,deg){ const rad=deg*Math.PI/180; return { x:cx+r*Math.cos(rad), y:cy+r*Math.sin(rad) }; }
+  function arcPath(cx,cy,r,startDeg,endDeg,color,strokeW,opacity,pathLenPct){
+    const s=polarToXY(cx,cy,r,startDeg), e=polarToXY(cx,cy,r,endDeg);
+    const largeArc = (endDeg-startDeg)>180?1:0;
+    const d = `M${s.x.toFixed(2)},${s.y.toFixed(2)} A${r},${r} 0 ${largeArc} 1 ${e.x.toFixed(2)},${e.y.toFixed(2)}`;
+    return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linecap="round" opacity="${opacity}" pathLength="100" stroke-dasharray="${pathLenPct} ${100-pathLenPct}"/>`;
+  }
+  function renderDonut(){
+    if(!state.tasks || !state.tasks.length) return;
+    const sel = $("donutGroupBy"); if(!sel) return;
+    const groupBy = sel.value;
+    const buckets = {}; const order = [];
+    state.tasks.forEach(t=>{
+      const key = groupBy==="phase" ? (t.phase||"Other") : t.group;
+      if(!(key in buckets)){ buckets[key]={dur:0,weighted:0}; order.push(key); }
+      const dur = t.milestone ? 1 : Math.max(1, daysBetween(t.start,t.finish));
+      buckets[key].dur += dur;
+      buckets[key].weighted += dur*computeFrac(t);
+    });
+    const totalDur = order.reduce((s,k)=>s+buckets[k].dur,0) || 1;
+    const cx=80, cy=80, r=58, strokeW=15, gapDeg=3;
+    let angle=-90, out="", overallW=0, overallD=0;
+    order.forEach(k=>{
+      const b = buckets[k];
+      const share = b.dur/totalDur;
+      const arcDeg = Math.max(2, share*360 - gapDeg);
+      const color = donutColor(k, groupBy);
+      out += arcPath(cx,cy,r,angle,angle+arcDeg,color,strokeW,0.22,100);
+      const progPct = Math.max(0, Math.min(100, (b.weighted/b.dur)*100));
+      out += arcPath(cx,cy,r,angle,angle+arcDeg,color,strokeW,1,progPct);
+      angle += share*360;
+      overallW += b.weighted; overallD += b.dur;
+    });
+    const overallPct = Math.round((overallW/overallD)*100);
+    out += `<text x="80" y="76" text-anchor="middle" font-size="22" fill="var(--text)" font-family="var(--sans)" font-weight="600">${overallPct}%</text><text x="80" y="94" text-anchor="middle" font-size="9" fill="var(--text-faint)" font-family="var(--sans)">overall</text>`;
+    $("donutSvg").innerHTML = out;
+    $("donutLegend").innerHTML = order.map(k=>{
+      const pct = Math.round((buckets[k].weighted/buckets[k].dur)*100);
+      return `<div class="donut-legend-row"><span class="donut-swatch" style="background:${donutColor(k,groupBy)}"></span>${escapeHtml(k)} — ${pct}%</div>`;
+    }).join("");
+  }
+  $("donutGroupBy") && $("donutGroupBy").addEventListener("change", renderDonut);
 
   function tick(ts){
     if(state.lastTs==null) state.lastTs=ts;
@@ -671,10 +824,10 @@ PCS Working,1/10/2028,,`;
     updateFrameVisuals();
     state.rafId = requestAnimationFrame(tick);
   }
-  function play(){ if(!state.tasks.length) return; if(state.currentDay>=state.totalDays) state.currentDay=0; state.playing=true; state.lastTs=null; $("playBtn").textContent="Pause"; state.rafId=requestAnimationFrame(tick); }
+  function play(){ if(!state.tasks.length) return; ensureAudio(); if(state.currentDay>=state.totalDays) state.currentDay=0; state.playing=true; state.lastTs=null; $("playBtn").textContent="Pause"; state.rafId=requestAnimationFrame(tick); }
   function pause(){ state.playing=false; $("playBtn").textContent="Play"; if(state.rafId) cancelAnimationFrame(state.rafId); }
   $("playBtn").addEventListener("click", ()=> state.playing ? pause() : play());
-  $("resetBtn").addEventListener("click", ()=>{ pause(); state.currentDay=0; updateFrameVisuals(); });
+  $("resetBtn").addEventListener("click", ()=>{ pause(); state.currentDay=0; state.flashed = new Set(); updateFrameVisuals(); });
   $("speedSlider").addEventListener("input", e=>{ state.speed=parseInt(e.target.value,10); $("speedVal").textContent=state.speed; });
   $("zoomSlider").addEventListener("input", e=>{ state.pxPerDay=parseInt(e.target.value,10); if(state.tasks.length) renderChart(); });
   $("scrubSlider").addEventListener("input", e=>{ pause(); state.currentDay=(parseFloat(e.target.value)/100)*state.totalDays; updateFrameVisuals(); });
@@ -682,40 +835,48 @@ PCS Working,1/10/2028,,`;
   // ---------- 3D Pulse view ----------
   let renderer3d, scene3d, camera3d, group3d, sweepPlane, clock3d;
   const boxMeshes = [];
+  const conflictMeshes = [];
 
   function init3D(){
     const el = $("view3d");
     if(renderer3d){ const oldCanvas = el.querySelector("canvas"); if(oldCanvas) oldCanvas.remove(); renderer3d.dispose(); }
     boxMeshes.length = 0;
+    conflictMeshes.length = 0;
 
     scene3d = new THREE.Scene();
-    scene3d.background = new THREE.Color(0x07060c);
-    scene3d.fog = new THREE.Fog(0x07060c, 60, 220);
+    scene3d.background = new THREE.Color(0x060c0e);
+    scene3d.fog = new THREE.Fog(0x060c0e, 60, 220);
 
     const w = el.clientWidth || 800, h = el.clientHeight || 600;
     camera3d = new THREE.PerspectiveCamera(45, w/h, 0.1, 500);
 
     renderer3d = new THREE.WebGLRenderer({ antialias:true });
     renderer3d.setSize(w,h);
+    renderer3d.domElement.style.width = "100%";
+    renderer3d.domElement.style.height = "100%";
+    renderer3d.domElement.style.display = "block";
     el.insertBefore(renderer3d.domElement, el.firstChild);
 
-    const amb = new THREE.AmbientLight(0x9a8fc0, 0.6); scene3d.add(amb);
-    const dir = new THREE.DirectionalLight(0xe4d4ff, 0.9); dir.position.set(30,50,30); scene3d.add(dir);
-    const rim = new THREE.DirectionalLight(0x34d8a8, 0.35); rim.position.set(-30,10,-30); scene3d.add(rim);
+    const amb = new THREE.AmbientLight(0x8fc9c4, 0.6); scene3d.add(amb);
+    const dir = new THREE.DirectionalLight(0xcdf7ee, 0.9); dir.position.set(30,50,30); scene3d.add(dir);
+    const rim = new THREE.DirectionalLight(0x2dd4bf, 0.35); rim.position.set(-30,10,-30); scene3d.add(rim);
 
     group3d = new THREE.Group();
     scene3d.add(group3d);
 
-    const groups = [...new Set(state.tasks.map(t=>t.group))];
     const rowSpacing = 2.4;
-    const timeScale = Math.max(0.15, 60/Math.max(1,state.totalDays));
+    const timeScale = Math.min(3, Math.max(0.06, 80/Math.max(1,state.totalDays)));
     let rowIdx = 0;
     const rowOf = {};
     state.tasks.forEach(t=>{ if(!(t.group in rowOf)) rowOf[t.group]=rowIdx++; });
+    const totalW = state.totalDays*timeScale;
+    const zCenter = Math.max(0, rowIdx-1)*rowSpacing/2;
 
-    // ground grid
-    const gridHelper = new THREE.GridHelper(140, 40, 0x33254e, 0x181228);
-    gridHelper.position.set(30,0,rowIdx*rowSpacing/2 - rowSpacing/2);
+    // ground grid — sized to fit the actual content, not a fixed footprint
+    const gridSize = Math.max(30, Math.max(totalW, rowIdx*rowSpacing)*1.5);
+    const gridDiv = Math.max(10, Math.round(gridSize/3));
+    const gridHelper = new THREE.GridHelper(gridSize, gridDiv, 0x234347, 0x0f1d20);
+    gridHelper.position.set(totalW/2, 0, zCenter);
     group3d.add(gridHelper);
 
     state.tasks.forEach(task=>{
@@ -741,19 +902,25 @@ PCS Working,1/10/2028,,`;
         mesh.userData = { task, milestone:false, x, dur, baseEmissive:0.1 };
         group3d.add(mesh); boxMeshes.push(mesh);
       }
+      if(task.conflict){
+        const markGeo = new THREE.SphereGeometry(0.28, 16, 16);
+        const markMat = new THREE.MeshBasicMaterial({ color:0xFF5B54, transparent:true, opacity:0.9 });
+        const mark = new THREE.Mesh(markGeo, markMat);
+        mark.position.set(x, task.milestone?1.9:1.5, z);
+        group3d.add(mark);
+        conflictMeshes.push(mark);
+      }
     });
 
     // sweep plane — the "pulse"
     const sweepGeo = new THREE.PlaneGeometry(0.4, rowIdx*rowSpacing + 8);
-    const sweepMat = new THREE.MeshBasicMaterial({ color:0xA76CFF, transparent:true, opacity:0.35, side:THREE.DoubleSide });
+    const sweepMat = new THREE.MeshBasicMaterial({ color:0x2DD4BF, transparent:true, opacity:0.4, side:THREE.DoubleSide });
     sweepPlane = new THREE.Mesh(sweepGeo, sweepMat);
-    sweepPlane.rotation.x = -Math.PI/2 * 0; // keep vertical, facing camera-ish
-    sweepPlane.position.set(0, 1.5, rowIdx*rowSpacing/2 - rowSpacing/2);
+    sweepPlane.position.set(0, 1.5, zCenter);
     group3d.add(sweepPlane);
 
-    const totalW = state.totalDays*timeScale;
-    const target = new THREE.Vector3(totalW*0.5, 0, rowIdx*rowSpacing/2);
-    const radius = Math.max(26, totalW*0.55 + 22);
+    const target = new THREE.Vector3(totalW*0.5, 0, zCenter);
+    const radius = Math.max(20, Math.max(totalW, rowIdx*rowSpacing)*0.75 + 14);
     state._3d = { rowIdx, rowSpacing, timeScale, totalW,
       orbit: { target, radius, theta:-0.9, phi:1.05, dragging:false, autoRotate:true, lastInteract:0 } };
     clock3d = new THREE.Clock();
@@ -796,11 +963,20 @@ PCS Working,1/10/2028,,`;
       o.lastInteract = performance.now();
     }, { passive:false });
   }
+  let resizeObs3D = null;
   function resize3D(){
     if(!renderer3d) return;
     const el = $("view3d");
     const w = el.clientWidth||800, h = el.clientHeight||600;
-    renderer3d.setSize(w,h); camera3d.aspect = w/h; camera3d.updateProjectionMatrix();
+    if(w<10||h<10) return;
+    renderer3d.setSize(w,h,false);
+    renderer3d.domElement.style.width = "100%";
+    renderer3d.domElement.style.height = "100%";
+    camera3d.aspect = w/h; camera3d.updateProjectionMatrix();
+    if(!resizeObs3D && "ResizeObserver" in window){
+      resizeObs3D = new ResizeObserver(()=>resize3D());
+      resizeObs3D.observe(el);
+    }
   }
   function update3DFrame(){
     if(!renderer3d || !state._3d) return;
@@ -810,6 +986,7 @@ PCS Working,1/10/2028,,`;
     const pulse = 1 + Math.sin(performance.now()/260)*0.06;
     sweepPlane.scale.set(pulse, 1, 1);
 
+    let leadMesh=null, leadWorld=null;
     boxMeshes.forEach(mesh=>{
       const u = mesh.userData;
       if(u.milestone){
@@ -827,8 +1004,29 @@ PCS Working,1/10/2028,,`;
         mesh.position.x = u.x + effWidth/2;
         const active = state.currentDay>=sD && state.currentDay<=eD;
         mesh.material.emissiveIntensity = active ? 0.6 : u.baseEmissive;
+        if(active){ leadMesh=mesh; leadWorld = new THREE.Vector3(u.x+effWidth, mesh.position.y+0.8, mesh.position.z); }
       }
     });
+
+    conflictMeshes.forEach(m=>{
+      const p = 1 + Math.sin(performance.now()/180)*0.35;
+      m.scale.setScalar(p);
+      m.material.opacity = 0.55 + Math.sin(performance.now()/180)*0.4;
+    });
+
+    const label3d = $("activeLabel3D");
+    if(label3d){
+      if(leadMesh && leadWorld){
+        const proj = leadWorld.clone().project(camera3d);
+        const el = $("view3d");
+        const sx = (proj.x*0.5+0.5)*el.clientWidth, sy = (1-(proj.y*0.5+0.5))*el.clientHeight;
+        if(proj.z < 1){
+          label3d.style.display = "block";
+          label3d.style.left = sx+"px"; label3d.style.top = sy+"px";
+          label3d.textContent = leadMesh.userData.task.name;
+        } else { label3d.style.display = "none"; }
+      } else { label3d.style.display = "none"; }
+    }
 
     const nearest = state.tasks.reduce((best,t)=>{
       const sD = daysBetween(state.minDate,t.start);
@@ -858,7 +1056,7 @@ PCS Working,1/10/2028,,`;
     $("btn3d").classList.toggle("active", v==="3d");
     $("chartWrap").style.display = v==="2d" ? "block" : "none";
     $("view3d").classList.toggle("active", v==="3d");
-    if(v==="3d"){ resize3D(); animate3D(); }
+    if(v==="3d"){ resize3D(); requestAnimationFrame(resize3D); animate3D(); }
   }
 
 })();
