@@ -6,6 +6,7 @@
 <title>Pulse — Animated Schedule Viewer</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
     --bg: #060C0E;
@@ -139,6 +140,22 @@
   .insight-note{ font-size:11px; color:var(--text-mute); margin-top:3px; line-height:1.5; }
   .insight-disclaimer{ font-size:10.5px; color:var(--text-faint); border-top:1px solid var(--border); padding-top:8px; margin-top:6px; }
   .bar-fill.critical{ box-shadow: 0 0 0 1.5px var(--amber) inset; }
+  body.presentation #sidebar{ display:none; }
+  body.presentation #topbar{ height:74px; }
+  body.presentation .proj-name{ font-size:20px; }
+  body.presentation .proj-meta{ font-size:15px; }
+  body.presentation #dateReadout{ font-size:22px; }
+  body.presentation .name-cell{ font-size:15px; }
+  body.presentation .name-col-header{ width:320px; }
+  body.presentation .name-cell{ width:320px; min-width:320px; }
+  .compare-row{ display:flex; justify-content:space-between; font-size:11px; padding:3px 0; border-bottom:1px solid var(--border); }
+  .compare-row .delta.late{ color:var(--red); }
+  .compare-row .delta.early{ color:var(--cyan); }
+  .compare-row .delta.same{ color:var(--text-faint); }
+  .actual-bar{ position:absolute; top:27px; height:5px; border-radius:2px; opacity:.95; }
+  .actual-bar.late{ background:var(--red); box-shadow:0 0 6px var(--red); }
+  .actual-bar.early{ background:var(--cyan); box-shadow:0 0 6px var(--cyan); }
+  .actual-bar.same{ background:var(--text-faint); }
 
   @keyframes conflictPulse{ 0%,100%{ box-shadow:0 0 6px 1px rgba(255,91,84,.55); } 50%{ box-shadow:0 0 18px 5px rgba(255,91,84,.95); } }
   .bar-fill.conflict, .milestone.conflict{ animation: conflictPulse 1.2s ease-in-out infinite; }
@@ -190,6 +207,23 @@
     <input type="range" id="zoomSlider" min="3" max="30" value="9">
     <label class="field">Scrub to date</label>
     <input type="range" id="scrubSlider" min="0" max="100" value="0">
+    <label style="display:flex; align-items:center; gap:7px; margin-top:12px; font-size:12px; color:var(--text-mute); cursor:pointer;">
+      <input type="checkbox" id="skipFridaysCheck" checked style="accent-color:var(--amber);"> Skip Fridays in playback
+    </label>
+    <div class="btn-row" style="margin-top:10px;">
+      <button class="btn ghost" id="presentBtn">Presentation mode</button>
+      <button class="btn ghost" id="snapshotBtn">Snapshot PNG</button>
+    </div>
+  </div>
+
+  <div class="card" id="compareCard" style="display:none;">
+    <h2>Compare to actuals</h2>
+    <div class="drop" id="baselineDrop" style="padding:14px 8px;">
+      <div class="t1" style="font-size:12px;">Drop an updated CSV to compare</div>
+      <div class="t2">Matches tasks by name, shows delay/ahead per item</div>
+    </div>
+    <input type="file" id="baselineInput" accept=".csv,text/csv" style="display:none;">
+    <div id="compareSummary" style="margin-top:10px;"></div>
   </div>
 
   <div class="card" id="legendCard" style="display:none;">
@@ -200,6 +234,7 @@
     <div class="legend-item"><span class="legend-swatch" style="transform:rotate(45deg);border:1px solid var(--grid-strong);background:transparent"></span> Milestone</div>
     <div class="legend-item"><span class="legend-swatch" style="background:var(--red); box-shadow:0 0 6px var(--red);"></span> Sequencing conflict (glows)</div>
     <div class="legend-item"><span class="legend-swatch" style="border:1.5px solid var(--amber); background:transparent;"></span> Critical chain</div>
+    <div class="legend-item"><span class="legend-swatch" style="background:var(--red); height:4px; border-radius:2px;"></span> Thin bar = updated/actual dates</div>
   </div>
 
   <div class="card" id="donutCard" style="display:none;">
@@ -235,9 +270,10 @@
     <div id="dateReadout">—</div>
   </div>
 
-  <div class="screen active" id="emptyScreen">
+  <div class="screen active" id="emptyScreen" style="flex-direction:column; gap:6px;">
     <div class="big">Load a CSV to animate your schedule</div>
     <div class="small">Or pick a sample project in the sidebar</div>
+    <button class="btn ghost" id="resumeBtn" style="width:auto; margin-top:14px; display:none;">Resume last schedule</button>
   </div>
 
   <div class="screen" id="detectScreen">
@@ -291,7 +327,7 @@
     rawRows:null, headers:[], tasks:[], groups:[],
     minDate:null, maxDate:null, totalDays:0,
     pxPerDay:9, currentDay:0, playing:false, speed:30, rafId:null, lastTs:null,
-    view:"2d", pendingRows:null,
+    view:"2d", pendingRows:null, skipNonWorking:true, presentation:false, baseline:null,
   };
   const $ = (id) => document.getElementById(id);
 
@@ -379,9 +415,66 @@
     reader.readAsText(file);
   }
 
+  // ---------- Compare to actuals ----------
+  const baselineDrop = $("baselineDrop"), baselineInput = $("baselineInput");
+  baselineDrop.addEventListener("click", ()=>baselineInput.click());
+  baselineDrop.addEventListener("dragover", e=>{ e.preventDefault(); baselineDrop.classList.add("drag"); });
+  baselineDrop.addEventListener("dragleave", ()=>baselineDrop.classList.remove("drag"));
+  baselineDrop.addEventListener("drop", e=>{ e.preventDefault(); baselineDrop.classList.remove("drag"); if(e.dataTransfer.files.length) handleBaselineFile(e.dataTransfer.files[0]); });
+  baselineInput.addEventListener("change", e=>{ if(e.target.files.length) handleBaselineFile(e.target.files[0]); });
+  function handleBaselineFile(file){
+    const reader = new FileReader();
+    reader.onload = e => compareBaseline(e.target.result);
+    reader.readAsText(file);
+  }
+  function compareBaseline(text){
+    if(!state.tasks.length){ alert("Load a schedule first, then compare an updated file against it."); return; }
+    const parsed = Papa.parse(text.trim(), { header:true, skipEmptyLines:true });
+    const rows = parsed.data, headers = parsed.meta.fields||[];
+    const nameCol = headers.find(h=>normHeader(h).includes("name")) || headers.find(h=>normHeader(h).includes("task")) || headers.find(h=>normHeader(h).includes("activity"));
+    const startCol = headers.find(h=>normHeader(h).includes("start"));
+    const finishCol = headers.find(h=>normHeader(h).includes("finish")) || headers.find(h=>normHeader(h).includes("end"));
+    if(!nameCol || !startCol){ alert("Couldn't find name/start columns in that file."); return; }
+    state.tasks.forEach(t=>{ delete t.actualStart; delete t.actualFinish; delete t.deltaDays; });
+    let matched=0;
+    rows.forEach(row=>{
+      const rawName = (row[nameCol]||"").toString().trim();
+      if(!rawName) return;
+      const cleanName = rawName.replace(/\s*-\s*(Start|Finish)\s*$/i,"").trim().toLowerCase();
+      const task = state.tasks.find(t=>t.name.trim().toLowerCase()===cleanName);
+      if(!task) return;
+      const aStart = parseDate(row[startCol]);
+      const aFinish = finishCol ? (parseDate(row[finishCol])||aStart) : aStart;
+      if(!aStart) return;
+      task.actualStart = aStart; task.actualFinish = aFinish;
+      task.deltaDays = daysBetween(task.finish, aFinish);
+      matched++;
+    });
+    state.baseline = matched>0;
+    if(!matched){ alert("No task names matched between your schedules — comparison needs the same task/area names in both files."); }
+    renderCompareSummary();
+    renderChart();
+  }
+  function renderCompareSummary(){
+    const el = $("compareSummary");
+    if(!el) return;
+    if(!state.baseline){ el.innerHTML = ""; return; }
+    const withDelta = state.tasks.filter(t=>t.deltaDays!==undefined).sort((a,b)=>b.deltaDays-a.deltaDays);
+    const lateCount = withDelta.filter(t=>t.deltaDays>1).length;
+    let html = `<div style="font-size:11px; color:var(--text-mute); margin-bottom:6px;">${withDelta.length} matched · ${lateCount} running late</div>`;
+    html += withDelta.map(t=>{
+      const cls = t.deltaDays>1?"late":(t.deltaDays<-1?"early":"same");
+      const label = t.deltaDays>0?`+${t.deltaDays}d`:(t.deltaDays<0?`${t.deltaDays}d`:"on time");
+      return `<div class="compare-row"><span>${escapeHtml(t.name)}</span><span class="delta ${cls}">${label}</span></div>`;
+    }).join("");
+    el.innerHTML = html;
+  }
+
   function normHeader(h){ return String(h).toLowerCase().replace(/[^a-z]/g,""); }
 
-  function handleCSVText(text){
+  function handleCSVText(text, skipSave){
+    state.lastRawText = text;
+    if(!skipSave){ try{ localStorage.setItem("pulse_last_csv", text); }catch(e){} }
     const parsed = Papa.parse(text.trim(), { header:true, skipEmptyLines:true });
     state.rawRows = parsed.data;
     state.headers = parsed.meta.fields || [];
@@ -539,8 +632,13 @@
       arr.sort((a,b)=> PHASE_ORDER.indexOf(a.phase)-PHASE_ORDER.indexOf(b.phase));
       for(let i=1;i<arr.length;i++){
         const prev=arr[i-1], cur=arr[i];
-        if(PHASE_ORDER.indexOf(prev.phase)>=0 && PHASE_ORDER.indexOf(cur.phase)>=0 && cur.start < prev.finish){
-          cur.conflict = true; prev.conflict = true;
+        if(PHASE_ORDER.indexOf(prev.phase)>=0 && PHASE_ORDER.indexOf(cur.phase)>=0){
+          const overlapDays = daysBetween(cur.start, prev.finish);
+          const prevDur = Math.max(1, daysBetween(prev.start, prev.finish));
+          // allow intentional fast-tracking — only flag if the overlap is more than 20% of the earlier phase
+          if(overlapDays > prevDur*0.2){
+            cur.conflict = true; prev.conflict = true;
+          }
         }
       }
     });
@@ -618,7 +716,9 @@
     renderChart();
     init3D();
     setScreen("chartScreen");
-    $("playCard").style.display="block"; $("legendCard").style.display="block"; $("viewToggle").style.display="flex"; $("donutCard").style.display="block"; $("insightsCard").style.display="block";
+    $("playCard").style.display="block"; $("legendCard").style.display="block"; $("viewToggle").style.display="flex"; $("donutCard").style.display="block"; $("insightsCard").style.display="block"; $("compareCard").style.display="block";
+    state.baseline = null;
+    $("compareSummary").innerHTML = "";
     $("projName").textContent = `${tasks.length} items`;
     $("projMeta").textContent = `${fmtDate(state.minDate)} → ${fmtDate(state.maxDate)}`;
     const hasPhases = tasks.some(t=>t.phase);
@@ -679,6 +779,16 @@
         if(task.conflict){
           const dot=document.createElement("div"); dot.className="conflict-dot"; dot.style.left=left+"px";
           track.appendChild(dot);
+        }
+        if(task.actualStart){
+          const aLeft = daysBetween(state.minDate, task.actualStart)*px;
+          const aWidth = Math.max(4, daysBetween(task.actualStart, task.actualFinish)*px);
+          const cls = task.deltaDays>1?"late":(task.deltaDays<-1?"early":"same");
+          const actualBar = document.createElement("div");
+          actualBar.className = "actual-bar "+cls;
+          actualBar.style.left = aLeft+"px"; actualBar.style.width = aWidth+"px";
+          actualBar.title = `Updated: ${fmtDate(task.actualStart)} → ${fmtDate(task.actualFinish)}`;
+          track.appendChild(actualBar);
         }
       }
       row.appendChild(track); rowsWrap.appendChild(row);
@@ -817,10 +927,17 @@
   }
   $("donutGroupBy") && $("donutGroupBy").addEventListener("change", renderDonut);
 
+  function isNonWorking(dayOffset){
+    if(!state.minDate) return false;
+    const d = new Date(state.minDate.getTime()+Math.round(dayOffset)*dayMs);
+    return d.getDay()===5; // Friday
+  }
   function tick(ts){
     if(state.lastTs==null) state.lastTs=ts;
     const dt=(ts-state.lastTs)/1000; state.lastTs=ts;
     state.currentDay += state.speed*dt;
+    let guard=0;
+    while(state.skipNonWorking && isNonWorking(state.currentDay) && state.currentDay<state.totalDays && guard++<3){ state.currentDay += 1; }
     if(state.currentDay>=state.totalDays){ state.currentDay=state.totalDays; updateFrameVisuals(); pause(); return; }
     updateFrameVisuals();
     state.rafId = requestAnimationFrame(tick);
@@ -832,6 +949,24 @@
   $("speedSlider").addEventListener("input", e=>{ state.speed=parseInt(e.target.value,10); $("speedVal").textContent=state.speed; });
   $("zoomSlider").addEventListener("input", e=>{ state.pxPerDay=parseInt(e.target.value,10); if(state.tasks.length) renderChart(); });
   $("scrubSlider").addEventListener("input", e=>{ pause(); state.currentDay=(parseFloat(e.target.value)/100)*state.totalDays; updateFrameVisuals(); });
+  $("skipFridaysCheck").addEventListener("change", e=>{ state.skipNonWorking = e.target.checked; });
+  $("presentBtn").addEventListener("click", ()=>{
+    state.presentation = !state.presentation;
+    document.body.classList.toggle("presentation", state.presentation);
+    $("presentBtn").textContent = state.presentation ? "Exit presentation" : "Presentation mode";
+    requestAnimationFrame(resize3D);
+  });
+  $("snapshotBtn").addEventListener("click", ()=>{
+    if(state.view==="3d" && renderer3d){
+      const a=document.createElement("a"); a.href=renderer3d.domElement.toDataURL("image/png"); a.download="pulse-snapshot.png"; a.click();
+    } else if(window.html2canvas){
+      html2canvas($("chartWrap"), {backgroundColor:"#060c0e"}).then(canvas=>{
+        const a=document.createElement("a"); a.href=canvas.toDataURL("image/png"); a.download="pulse-snapshot.png"; a.click();
+      });
+    } else {
+      alert("Snapshot needs a moment to load — try again in a second, or switch to 3D Pulse view and snapshot from there.");
+    }
+  });
 
   // ---------- Click-to-show-dates ----------
   function showDateTooltip(task, x, y){
@@ -869,7 +1004,7 @@
     const w = el.clientWidth || 800, h = el.clientHeight || 600;
     camera3d = new THREE.PerspectiveCamera(45, w/h, 0.1, 500);
 
-    renderer3d = new THREE.WebGLRenderer({ antialias:true });
+    renderer3d = new THREE.WebGLRenderer({ antialias:true, logarithmicDepthBuffer:true });
     renderer3d.setSize(w,h);
     renderer3d.domElement.style.width = "100%";
     renderer3d.domElement.style.height = "100%";
@@ -909,14 +1044,14 @@
 
       if(task.milestone){
         const geo = new THREE.OctahedronGeometry(0.55,0);
-        const mat = new THREE.MeshStandardMaterial({ color, emissive:color, emissiveIntensity:0.15, metalness:0.3, roughness:0.4 });
+        const mat = new THREE.MeshStandardMaterial({ color, emissive:color, emissiveIntensity:0.15, metalness:0, roughness:0.85 });
         const mesh = new THREE.Mesh(geo, mat);
         mesh.position.set(x, 1, z);
         mesh.userData = { task, milestone:true, baseEmissive:0.15 };
         group3d.add(mesh); boxMeshes.push(mesh);
       } else {
         const geo = new THREE.BoxGeometry(1, 1.1, 1);
-        const mat = new THREE.MeshStandardMaterial({ color, emissive:color, emissiveIntensity:0.1, metalness:0.25, roughness:0.5 });
+        const mat = new THREE.MeshStandardMaterial({ color, emissive:color, emissiveIntensity:0.1, metalness:0, roughness:0.85 });
         const mesh = new THREE.Mesh(geo, mat);
         mesh.scale.set(0.001, 1, 1);
         mesh.position.set(x, 0.55, z);
@@ -1127,6 +1262,11 @@
     $("view3d").classList.toggle("active", v==="3d");
     if(v==="3d"){ resize3D(); requestAnimationFrame(resize3D); animate3D(); }
   }
+
+  try{
+    const saved = localStorage.getItem("pulse_last_csv");
+    if(saved){ const btn=$("resumeBtn"); btn.style.display="inline-block"; btn.addEventListener("click", ()=>handleCSVText(saved, true)); }
+  }catch(e){}
 
 })();
 </script>
