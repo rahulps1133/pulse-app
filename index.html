@@ -128,6 +128,17 @@
 
   .active-label{ position:absolute; z-index:8; transform:translate(-50%,-100%); background:var(--panel-2); border:1px solid var(--amber); color:var(--text); font-size:11px; padding:3px 9px; border-radius:6px; white-space:nowrap; pointer-events:none; box-shadow:0 0 12px rgba(45,212,191,.5); display:none; }
   .active-label::after{ content:""; position:absolute; left:50%; bottom:-9px; width:6px; height:6px; background:var(--amber); border-radius:50%; transform:translateX(-50%); box-shadow:0 0 10px var(--amber); }
+  #dateTooltip{ position:fixed; z-index:50; background:var(--panel-2); border:1px solid var(--amber); border-radius:8px; padding:9px 13px; font-size:12px; color:var(--text); box-shadow:0 6px 22px rgba(0,0,0,.55); pointer-events:none; display:none; line-height:1.5; max-width:220px; }
+  #dateTooltip .dtd{ font-family:var(--datefont); color:var(--amber); }
+  .bar-fill, .milestone{ cursor:pointer; }
+  .axis-label{ position:absolute; font-family:var(--datefont); font-size:11px; color:var(--text-faint); pointer-events:none; white-space:nowrap; transform:translate(-50%,-50%); }
+  .axis-label.area{ color:var(--text-mute); font-family:var(--sans); font-size:11px; transform:translate(6px,-50%); }
+  .insight-block{ margin-bottom:12px; font-size:12px; }
+  .insight-block b{ color:var(--text); font-size:12px; }
+  .insight-chain{ font-size:11px; color:var(--amber); margin-top:4px; line-height:1.5; }
+  .insight-note{ font-size:11px; color:var(--text-mute); margin-top:3px; line-height:1.5; }
+  .insight-disclaimer{ font-size:10.5px; color:var(--text-faint); border-top:1px solid var(--border); padding-top:8px; margin-top:6px; }
+  .bar-fill.critical{ box-shadow: 0 0 0 1.5px var(--amber) inset; }
 
   @keyframes conflictPulse{ 0%,100%{ box-shadow:0 0 6px 1px rgba(255,91,84,.55); } 50%{ box-shadow:0 0 18px 5px rgba(255,91,84,.95); } }
   .bar-fill.conflict, .milestone.conflict{ animation: conflictPulse 1.2s ease-in-out infinite; }
@@ -188,6 +199,7 @@
     <div class="legend-item"><span class="legend-swatch" style="background:var(--red)"></span> Behind plan</div>
     <div class="legend-item"><span class="legend-swatch" style="transform:rotate(45deg);border:1px solid var(--grid-strong);background:transparent"></span> Milestone</div>
     <div class="legend-item"><span class="legend-swatch" style="background:var(--red); box-shadow:0 0 6px var(--red);"></span> Sequencing conflict (glows)</div>
+    <div class="legend-item"><span class="legend-swatch" style="border:1.5px solid var(--amber); background:transparent;"></span> Critical chain</div>
   </div>
 
   <div class="card" id="donutCard" style="display:none;">
@@ -200,8 +212,11 @@
     <div id="donutLegend" style="margin-top:8px;"></div>
   </div>
 
+  <div class="card" id="insightsCard" style="display:none;"></div>
+
   <div class="footnote">
     Runs entirely in your browser — nothing is uploaded anywhere. Direct P6 XER import and saved/shared projects are planned next.
+    <div style="margin-top:8px; opacity:.8;">Developed by AR Design Atelier</div>
   </div>
 </div>
 
@@ -261,9 +276,11 @@
     <div id="view3d">
       <div id="hud3d">Area <b id="hud3dArea">—</b> · <span id="hud3dDate">—</span></div>
       <div class="active-label" id="activeLabel3D"></div>
+      <div id="axisLabels3D"></div>
     </div>
   </div>
 </div>
+<div id="dateTooltip"></div>
 
 <script>
 (function(){
@@ -314,82 +331,6 @@
   };
   function sampleCSV(key){ return SAMPLES[key].rows.map(r=>r.join(",")).join("\n"); }
   const sampleBtnsWrap = $("sampleBtns");
-  const AMALI_CSV = `Name,Start date,End date (optional),PairingID (optional)
-Project Start,9/2/2026,,
-Area 1 - Sub - Start,14/03/2026,19/09/2026,1
-Area 2 - Sub - Start,6/4/2026,31/10/2026,4
-Area 2A - Sub - Start,25/04/2026,18/03/2027,7
-Area 3 - Sub - Start,1/6/2026,12/11/2026,10
-Area 4 - Sub - Start,20/06/2026,28/12/2026,13
-Area 1 - Super - Start,20/08/2026,21/12/2026,2
-Area 1 - Sub - Finish,19/09/2026,19/09/2026,1
-Area 2 - Super - Start,14/10/2026,1/3/2027,5
-Area 2 - Sub - Finish,31/10/2026,31/10/2026,4
-Area 5 - Sub - Start,1/8/2026,2/2/2027,16
-Area 3 - Super - Start,24/10/2026,19/03/2027,11
-Area 1 - Finishing - Start,27/10/2026,29/10/2027,3
-Area 3 - Sub - Finish,12/11/2026,12/11/2026,10
-Area 2 - Finishing - Start,25/12/2026,8/2/2028,6
-Area 2A - Super - Start,19/12/2026,24/04/2027,8
-Area 4 - Sub - Finish,28/12/2026,28/12/2026,13
-Area 1 - Super - Finish,21/12/2026,21/12/2026,2
-Area 2A - Finishing - Start,19/03/2027,14/04/2028,9
-Area 4 - Super - Start,23/11/2026,26/05/2027,14
-Area 2A- Sub- Finish,18/03/2027,18/03/2027,7
-Area 2 - Super - Finish,1/3/2027,1/3/2027,5
-Area 3 - Finishing - Start,1/3/2027,9/3/2028,12
-Area 5 - Super - Start,12/1/2027,29/06/2027,17
-Area 3 - Super - Finish,19/03/2027,19/03/2027,11
-Area 5 - Sub - Finish,2/2/2027,2/2/2027,16
-Area 4 - Finishing - Start,10/4/2027,8/4/2028,15
-Area 2A - Super - Finish,24/04/2027,24/04/2027,8
-Clubhouse - Sub - Start,19/01/2027,29/06/2027,19
-Clubhouse - Super - Start,19/01/2027,29/06/2027,20
-Area 5 - Finishing - Start,22/05/2027,29/05/2028,18
-Area 4 - Super - Finish,26/05/2027,26/05/2027,14
-Clubhouse - Finishing - Start,23/04/2027,4/6/2028,21
-Area 5 - Super - Finish,29/06/2027,29/06/2027,17
-Clubhouse - Sub - Finish,29/06/2027,29/06/2027,20
-Clubhouse - Super - Finish,29/06/2027,29/06/2027,19
-Area 1 - Finishing - Finish,29/10/2027,29/10/2027,3
-Batch Plant Demob,16/08/2027,16/08/2027,32
-Area 6 - Sub - Start,17/08/2027,21/12/2027,22
-Area 2 - Finishing - Finish,8/2/2028,8/2/2028,6
-Area 6 - Super - Start,18/12/2027,21/03/2028,23
-Area 6 - Sub - Finish,21/12/2027,21/12/2027,22
-Area 2A - Finishing - Finish,14/04/2028,14/04/2028,9
-Area 3 - Finishing - Finish,9/3/2028,9/3/2028,12
-Area 6 - Finishing,1/2/2028,20/06/2028,24
-Area 7 - Beach - Start,22/05/2028,10/7/2028,25
-Spine Road 1 - Start,14/02/2028,14/03/2028,29
-Area 6 - Super - Finish,21/03/2028,21/03/2028,23
-Area 4 - Finishing - Finish,8/4/2028,8/4/2028,15
-Spine Road 2 - Start,10/3/2028,6/4/2028,30
-Area 8 - Beach - Start,13/06/2028,21/07/2028,26
-Spine Road 1 - Finish,14/03/2028,14/03/2028,29
-Spine Road 3 - Start,3/4/2028,27/04/2028,31
-Spine Road 2 - Finish,6/4/2028,6/4/2028,30
-Area 7 - Beach - Finish,10/7/2028,10/7/2028,25
-Area 9 - Beach - Start,30/06/2028,9/8/2028,27
-Spine Road 3 - Finish,27/04/2028,27/04/2028,31
-Area 5 - Finishing - Finish,29/05/2028,29/05/2028,18
-Area 8 - Beach - Finish,21/07/2028,21/07/2028,26
-Area 10 - Beach - Start,14/07/2028,21/08/2028,28
-Area 6 - Finishing,20/06/2028,20/06/2028,24
-Area 9 - Beach - Finish,9/8/2028,9/8/2028,27
-Clubhouse - Finishing - Finish,4/6/2028,4/6/2028,21
-Area 10 - Beach - Finish,21/08/2028,21/08/2028,28
-Site Office Removal - Start,23/08/2028,,
-T&C/Handover Completion,30/08/2028,30/08/2028,33
-Project Completion,7/9/2028,7/9/2028,34
-PCS Working,1/10/2028,,`;
-  {
-    const b = document.createElement("button");
-    b.className = "btn ghost";
-    b.textContent = "Sample: Amali masterplan (your file)";
-    b.addEventListener("click", ()=> handleCSVText(AMALI_CSV) );
-    sampleBtnsWrap.appendChild(b);
-  }
   Object.keys(SAMPLES).forEach(key=>{
     const b = document.createElement("button");
     b.className = "btn ghost";
@@ -605,6 +546,63 @@ PCS Working,1/10/2028,,`;
     });
   }
 
+  function computeCriticalPath(tasks){
+    const PHASE_ORDER = ["Sub","Super","Finishing","Beach"];
+    const predMap = {};
+    tasks.forEach(t=> predMap[t.id] = (t.predecessors&&t.predecessors.length) ? t.predecessors.slice() : []);
+    const byGroup = {};
+    tasks.forEach(t=>{ if(t.phase){ (byGroup[t.group]=byGroup[t.group]||[]).push(t); } });
+    Object.values(byGroup).forEach(arr=>{
+      arr.sort((a,b)=> PHASE_ORDER.indexOf(a.phase)-PHASE_ORDER.indexOf(b.phase));
+      for(let i=1;i<arr.length;i++){ predMap[arr[i].id].push(arr[i-1].id); }
+    });
+    const maxT = Math.max(...tasks.map(t=>t.finish.getTime()));
+    const endTasks = tasks.filter(t=>t.finish.getTime()===maxT);
+    if(!endTasks.length) return [];
+    let chain = [], current = endTasks[0], visited = new Set();
+    while(current && !visited.has(current.id)){
+      chain.push(current.id); visited.add(current.id);
+      const preds = predMap[current.id]||[];
+      if(!preds.length) break;
+      let latest=null;
+      preds.forEach(pid=>{ const p=tasks.find(x=>x.id===pid); if(p && (!latest || p.finish>latest.finish)) latest=p; });
+      current = latest;
+    }
+    return chain.reverse();
+  }
+
+  function renderInsights(tasks){
+    const card = $("insightsCard");
+    if(!card) return;
+    const chainIds = state.criticalChain || [];
+    const chainTasks = chainIds.map(id=>tasks.find(t=>t.id===id)).filter(Boolean);
+    const conflicts = tasks.filter(t=>t.conflict);
+    const longest = tasks.filter(t=>!t.milestone).sort((a,b)=> (b.finish-b.start)-(a.finish-a.start))[0];
+    let html = "<h2>Insights</h2>";
+    if(chainTasks.length>1){
+      const span = Math.round((chainTasks[chainTasks.length-1].finish - chainTasks[0].start)/dayMs);
+      html += `<div class="insight-block"><b>Critical chain</b><div class="insight-chain">${chainTasks.map(t=>escapeHtml(t.name)).join(" → ")}</div><div class="insight-note">${span} days · these have to complete on time for the project not to slip.</div></div>`;
+    }
+    html += `<div class="insight-block"><b>Conflicts flagged: ${conflicts.length}</b>`;
+    if(conflicts.length){
+      html += `<div class="insight-note">${conflicts.slice(0,6).map(t=>escapeHtml(t.name)).join(", ")}${conflicts.length>6?", …":""}</div>`;
+    } else {
+      html += `<div class="insight-note">No sequencing overlaps detected against the phase order / predecessor data available.</div>`;
+    }
+    html += `</div>`;
+    if(longest){
+      const days = Math.round((longest.finish-longest.start)/dayMs);
+      html += `<div class="insight-block"><b>Longest single item</b><div class="insight-note">${escapeHtml(longest.name)} — ${days} days. Worth checking if it should be broken into sub-activities for tighter tracking.</div></div>`;
+    }
+    const totalSpan = state.totalDays;
+    const chainSpan = chainTasks.length>1 ? Math.round((chainTasks[chainTasks.length-1].finish-chainTasks[0].start)/dayMs) : 0;
+    if(chainSpan / totalSpan > 0.85){
+      html += `<div class="insight-block"><b>Note</b><div class="insight-note">The critical chain covers most of the project timeline — there's very little float anywhere in this schedule.</div></div>`;
+    }
+    html += `<div class="insight-disclaimer">Automated pattern analysis, runs in your browser — not a live AI model.</div>`;
+    card.innerHTML = html;
+  }
+
   function finalizeTasks(tasks){
     detectConflicts(tasks);
     state.tasks = tasks;
@@ -616,15 +614,17 @@ PCS Working,1/10/2028,,`;
     state.flashed = new Set();
     state.rowTop = {};
     state._phaseColors = {};
+    state.criticalChain = computeCriticalPath(tasks);
     renderChart();
     init3D();
     setScreen("chartScreen");
-    $("playCard").style.display="block"; $("legendCard").style.display="block"; $("viewToggle").style.display="flex"; $("donutCard").style.display="block";
+    $("playCard").style.display="block"; $("legendCard").style.display="block"; $("viewToggle").style.display="flex"; $("donutCard").style.display="block"; $("insightsCard").style.display="block";
     $("projName").textContent = `${tasks.length} items`;
     $("projMeta").textContent = `${fmtDate(state.minDate)} → ${fmtDate(state.maxDate)}`;
     const hasPhases = tasks.some(t=>t.phase);
     $("donutGroupBy").querySelector('option[value="phase"]').disabled = !hasPhases;
     renderDonut();
+    renderInsights(tasks);
   }
 
   function setScreen(id){
@@ -672,7 +672,8 @@ PCS Working,1/10/2028,,`;
         const width = Math.max(4, daysBetween(task.start, task.finish)*px);
         const plan=document.createElement("div"); plan.className="bar-plan"; plan.style.left=left+"px"; plan.style.width=width+"px";
         track.appendChild(plan);
-        const fill=document.createElement("div"); fill.className="bar-fill"+(task.conflict?" conflict":""); fill.style.left=left+"px"; fill.style.top="9px"; fill.style.height="16px";
+        const isCritical = state.criticalChain && state.criticalChain.includes(task.id);
+        const fill=document.createElement("div"); fill.className="bar-fill"+(task.conflict?" conflict":"")+(isCritical?" critical":""); fill.style.left=left+"px"; fill.style.top="9px"; fill.style.height="16px";
         fill.style.background=groupColor(task.group); fill.dataset.taskId=task.id; fill.dataset.left=left; fill.dataset.width=width;
         track.appendChild(fill);
         if(task.conflict){
@@ -728,7 +729,7 @@ PCS Working,1/10/2028,,`;
         label2d.style.display = "block";
         label2d.style.left = leadX+"px";
         label2d.style.top = (leadTop+7)+"px";
-        label2d.textContent = leadTask.name;
+        label2d.innerHTML = `${escapeHtml(leadTask.name)}<br><span style="opacity:.7;font-family:var(--datefont);">Started ${fmtDate(leadTask.start)}</span>`;
       } else { label2d.style.display = "none"; }
     }
     document.querySelectorAll(".milestone").forEach(el=>{
@@ -832,8 +833,26 @@ PCS Working,1/10/2028,,`;
   $("zoomSlider").addEventListener("input", e=>{ state.pxPerDay=parseInt(e.target.value,10); if(state.tasks.length) renderChart(); });
   $("scrubSlider").addEventListener("input", e=>{ pause(); state.currentDay=(parseFloat(e.target.value)/100)*state.totalDays; updateFrameVisuals(); });
 
+  // ---------- Click-to-show-dates ----------
+  function showDateTooltip(task, x, y){
+    const tip = $("dateTooltip");
+    tip.style.display = "block";
+    tip.style.left = Math.min(x+12, window.innerWidth-232)+"px";
+    tip.style.top = Math.min(y+12, window.innerHeight-100)+"px";
+    tip.innerHTML = `<b>${escapeHtml(task.name)}</b><br>Start: <span class="dtd">${fmtDate(task.start)}</span><br>Finish: <span class="dtd">${fmtDate(task.finish)}</span>${task.conflict?'<br><span style="color:var(--red)">⚠ sequencing conflict</span>':""}`;
+  }
+  document.addEventListener("click", e=>{
+    if(!e.target.closest(".bar-fill, .milestone") && !e.target.closest("#view3d")){ $("dateTooltip").style.display="none"; }
+  });
+  $("chartInner").addEventListener("click", e=>{
+    const el = e.target.closest(".bar-fill, .milestone");
+    if(!el) return;
+    const task = state.tasks.find(t=>t.id==el.dataset.taskId);
+    if(task) showDateTooltip(task, e.clientX, e.clientY);
+  });
+
   // ---------- 3D Pulse view ----------
-  let renderer3d, scene3d, camera3d, group3d, sweepPlane, clock3d;
+  let renderer3d, scene3d, camera3d, group3d, sweepPlane, clock3d, glowLight;
   const boxMeshes = [];
   const conflictMeshes = [];
 
@@ -860,6 +879,8 @@ PCS Working,1/10/2028,,`;
     const amb = new THREE.AmbientLight(0x8fc9c4, 0.6); scene3d.add(amb);
     const dir = new THREE.DirectionalLight(0xcdf7ee, 0.9); dir.position.set(30,50,30); scene3d.add(dir);
     const rim = new THREE.DirectionalLight(0x2dd4bf, 0.35); rim.position.set(-30,10,-30); scene3d.add(rim);
+    glowLight = new THREE.PointLight(0x2DD4BF, 0, 14, 2);
+    scene3d.add(glowLight);
 
     group3d = new THREE.Group();
     scene3d.add(group3d);
@@ -921,7 +942,7 @@ PCS Working,1/10/2028,,`;
 
     const target = new THREE.Vector3(totalW*0.5, 0, zCenter);
     const radius = Math.max(20, Math.max(totalW, rowIdx*rowSpacing)*0.75 + 14);
-    state._3d = { rowIdx, rowSpacing, timeScale, totalW,
+    state._3d = { rowIdx, rowSpacing, timeScale, totalW, zCenter, rowOf,
       orbit: { target, radius, theta:-0.9, phi:1.05, dragging:false, autoRotate:true, lastInteract:0 } };
     clock3d = new THREE.Clock();
 
@@ -935,10 +956,10 @@ PCS Working,1/10/2028,,`;
     if(el.dataset.orbitBound) return;
     el.dataset.orbitBound = "1";
     el.style.cursor = "grab";
-    let dragging=false, lastX=0, lastY=0;
+    let dragging=false, lastX=0, lastY=0, downX=0, downY=0, moved=false;
     el.addEventListener("pointerdown", e=>{
       if(!state._3d) return;
-      dragging = true; lastX = e.clientX; lastY = e.clientY;
+      dragging = true; lastX = e.clientX; lastY = e.clientY; downX=e.clientX; downY=e.clientY; moved=false;
       state._3d.orbit.autoRotate = false;
       state._3d.orbit.lastInteract = performance.now();
       el.style.cursor = "grabbing";
@@ -947,6 +968,7 @@ PCS Working,1/10/2028,,`;
       if(!dragging || !state._3d) return;
       const dx = e.clientX-lastX, dy = e.clientY-lastY;
       lastX = e.clientX; lastY = e.clientY;
+      if(Math.abs(e.clientX-downX)>4 || Math.abs(e.clientY-downY)>4) moved = true;
       const o = state._3d.orbit;
       o.theta -= dx*0.006;
       o.phi -= dy*0.006;
@@ -962,6 +984,16 @@ PCS Working,1/10/2028,,`;
       o.radius = Math.max(10, Math.min(280, o.radius));
       o.lastInteract = performance.now();
     }, { passive:false });
+    el.addEventListener("click", e=>{
+      if(moved || !renderer3d || state.view!=="3d") return;
+      const rect = el.getBoundingClientRect();
+      const mouse = new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1, -((e.clientY-rect.top)/rect.height)*2+1);
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(mouse, camera3d);
+      const hits = ray.intersectObjects(boxMeshes);
+      if(hits.length){ showDateTooltip(hits[0].object.userData.task, e.clientX, e.clientY); }
+      else { $("dateTooltip").style.display = "none"; }
+    });
   }
   let resizeObs3D = null;
   function resize3D(){
@@ -1003,10 +1035,19 @@ PCS Working,1/10/2028,,`;
         mesh.scale.x = effWidth;
         mesh.position.x = u.x + effWidth/2;
         const active = state.currentDay>=sD && state.currentDay<=eD;
-        mesh.material.emissiveIntensity = active ? 0.6 : u.baseEmissive;
+        mesh.material.emissiveIntensity = active ? 1.4 + Math.sin(performance.now()/180)*0.5 : u.baseEmissive;
         if(active){ leadMesh=mesh; leadWorld = new THREE.Vector3(u.x+effWidth, mesh.position.y+0.8, mesh.position.z); }
       }
     });
+
+    if(glowLight){
+      if(leadWorld){
+        glowLight.position.copy(leadWorld);
+        glowLight.intensity = 2.2 + Math.sin(performance.now()/150)*0.8;
+      } else {
+        glowLight.intensity = 0;
+      }
+    }
 
     conflictMeshes.forEach(m=>{
       const p = 1 + Math.sin(performance.now()/180)*0.35;
@@ -1023,7 +1064,7 @@ PCS Working,1/10/2028,,`;
         if(proj.z < 1){
           label3d.style.display = "block";
           label3d.style.left = sx+"px"; label3d.style.top = sy+"px";
-          label3d.textContent = leadMesh.userData.task.name;
+          label3d.innerHTML = `${escapeHtml(leadMesh.userData.task.name)}<br><span style="opacity:.7;font-family:var(--datefont);">Started ${fmtDate(leadMesh.userData.task.start)}</span>`;
         } else { label3d.style.display = "none"; }
       } else { label3d.style.display = "none"; }
     }
@@ -1034,6 +1075,34 @@ PCS Working,1/10/2028,,`;
     }, {g:"—", d:Infinity});
     $("hud3dArea").textContent = nearest.g;
     $("hud3dDate").textContent = fmtDate(new Date(state.minDate.getTime()+state.currentDay*dayMs));
+    updateAxisLabels3D();
+  }
+
+  function project3D(x,y,z){
+    const el = $("view3d");
+    const v = new THREE.Vector3(x,y,z).project(camera3d);
+    return { x:(v.x*0.5+0.5)*el.clientWidth, y:(1-(v.y*0.5+0.5))*el.clientHeight, visible: v.z<1 };
+  }
+  function updateAxisLabels3D(){
+    const container = $("axisLabels3D");
+    if(!container || !state._3d) return;
+    const { timeScale, totalW, zCenter, rowOf } = state._3d;
+    let html = "";
+    const dayStep = Math.max(7, Math.round(state.totalDays/6/7)*7);
+    for(let d=0; d<=state.totalDays; d+=dayStep){
+      const p = project3D(d*timeScale, 0, zCenter + Math.max(4, state._3d.rowIdx*state._3d.rowSpacing/2)+3);
+      if(p.visible){
+        const dt = new Date(state.minDate.getTime()+d*dayMs);
+        html += `<div class="axis-label" style="left:${p.x}px; top:${p.y}px;">${dt.toLocaleDateString(undefined,{day:"2-digit",month:"short"})}</div>`;
+      }
+    }
+    html += `<div class="axis-label" style="left:${project3D(totalW*0.5,0,zCenter + Math.max(4,state._3d.rowIdx*state._3d.rowSpacing/2)+7).x}px; top:${project3D(totalW*0.5,0,zCenter + Math.max(4,state._3d.rowIdx*state._3d.rowSpacing/2)+7).y}px; color:var(--amber);">— Time / Progress →</div>`;
+    Object.keys(rowOf).forEach(g=>{
+      const z = rowOf[g]*state._3d.rowSpacing;
+      const p = project3D(-2, 0.6, z);
+      if(p.visible){ html += `<div class="axis-label area" style="left:${p.x}px; top:${p.y}px;">${escapeHtml(g)}</div>`; }
+    });
+    container.innerHTML = html;
   }
   function animate3D(){
     if(state.view!=="3d"){ return; }
