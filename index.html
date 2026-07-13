@@ -6,7 +6,6 @@
 <title>Pulse — Animated Schedule Viewer</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
     --bg: #060C0E;
@@ -24,7 +23,7 @@
     --border: #16292C;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", monospace;
-    --datefont: "Calibri", "Segoe UI", var(--sans);
+    --datefont: "Calibri";
   }
   * { box-sizing: border-box; }
   html,body{ margin:0; height:100%; background:var(--bg); color:var(--text); font-family:var(--sans); overflow:hidden; }
@@ -140,14 +139,6 @@
   .insight-note{ font-size:11px; color:var(--text-mute); margin-top:3px; line-height:1.5; }
   .insight-disclaimer{ font-size:10.5px; color:var(--text-faint); border-top:1px solid var(--border); padding-top:8px; margin-top:6px; }
   .bar-fill.critical{ box-shadow: 0 0 0 1.5px var(--amber) inset; }
-  body.presentation #sidebar{ display:none; }
-  body.presentation #topbar{ height:74px; }
-  body.presentation .proj-name{ font-size:20px; }
-  body.presentation .proj-meta{ font-size:15px; }
-  body.presentation #dateReadout{ font-size:22px; }
-  body.presentation .name-cell{ font-size:15px; }
-  body.presentation .name-col-header{ width:320px; }
-  body.presentation .name-cell{ width:320px; min-width:320px; }
   .compare-row{ display:flex; justify-content:space-between; font-size:11px; padding:3px 0; border-bottom:1px solid var(--border); }
   .compare-row .delta.late{ color:var(--red); }
   .compare-row .delta.early{ color:var(--cyan); }
@@ -208,12 +199,15 @@
     <label class="field">Scrub to date</label>
     <input type="range" id="scrubSlider" min="0" max="100" value="0">
     <label style="display:flex; align-items:center; gap:7px; margin-top:12px; font-size:12px; color:var(--text-mute); cursor:pointer;">
-      <input type="checkbox" id="skipFridaysCheck" checked style="accent-color:var(--amber);"> Skip Fridays in playback
+      <input type="checkbox" id="skipSundaysCheck" checked style="accent-color:var(--amber);"> Skip Sundays in playback
     </label>
-    <div class="btn-row" style="margin-top:10px;">
-      <button class="btn ghost" id="presentBtn">Presentation mode</button>
-      <button class="btn ghost" id="snapshotBtn">Snapshot PNG</button>
-    </div>
+    <label class="field">Export quality</label>
+    <select id="videoQuality" style="margin-bottom:8px;">
+      <option value="720">HD — 1280×720</option>
+      <option value="1080" selected>Full HD — 1920×1080</option>
+      <option value="2160">UHD — 3840×2160</option>
+    </select>
+    <button class="btn ghost" id="exportVideoBtn" style="width:100%;">Export video (3D view)</button>
   </div>
 
   <div class="card" id="compareCard" style="display:none;">
@@ -327,7 +321,7 @@
     rawRows:null, headers:[], tasks:[], groups:[],
     minDate:null, maxDate:null, totalDays:0,
     pxPerDay:9, currentDay:0, playing:false, speed:30, rafId:null, lastTs:null,
-    view:"2d", pendingRows:null, skipNonWorking:true, presentation:false, baseline:null,
+    view:"2d", pendingRows:null, skipNonWorking:true, baseline:null, recorder:null,
   };
   const $ = (id) => document.getElementById(id);
 
@@ -930,7 +924,7 @@
   function isNonWorking(dayOffset){
     if(!state.minDate) return false;
     const d = new Date(state.minDate.getTime()+Math.round(dayOffset)*dayMs);
-    return d.getDay()===5; // Friday
+    return d.getDay()===0; // Sunday
   }
   function tick(ts){
     if(state.lastTs==null) state.lastTs=ts;
@@ -938,7 +932,7 @@
     state.currentDay += state.speed*dt;
     let guard=0;
     while(state.skipNonWorking && isNonWorking(state.currentDay) && state.currentDay<state.totalDays && guard++<3){ state.currentDay += 1; }
-    if(state.currentDay>=state.totalDays){ state.currentDay=state.totalDays; updateFrameVisuals(); pause(); return; }
+    if(state.currentDay>=state.totalDays){ state.currentDay=state.totalDays; updateFrameVisuals(); pause(); if(state.recorder && state.recorder.state==="recording") state.recorder.stop(); return; }
     updateFrameVisuals();
     state.rafId = requestAnimationFrame(tick);
   }
@@ -949,23 +943,49 @@
   $("speedSlider").addEventListener("input", e=>{ state.speed=parseInt(e.target.value,10); $("speedVal").textContent=state.speed; });
   $("zoomSlider").addEventListener("input", e=>{ state.pxPerDay=parseInt(e.target.value,10); if(state.tasks.length) renderChart(); });
   $("scrubSlider").addEventListener("input", e=>{ pause(); state.currentDay=(parseFloat(e.target.value)/100)*state.totalDays; updateFrameVisuals(); });
-  $("skipFridaysCheck").addEventListener("change", e=>{ state.skipNonWorking = e.target.checked; });
-  $("presentBtn").addEventListener("click", ()=>{
-    state.presentation = !state.presentation;
-    document.body.classList.toggle("presentation", state.presentation);
-    $("presentBtn").textContent = state.presentation ? "Exit presentation" : "Presentation mode";
-    requestAnimationFrame(resize3D);
-  });
-  $("snapshotBtn").addEventListener("click", ()=>{
-    if(state.view==="3d" && renderer3d){
-      const a=document.createElement("a"); a.href=renderer3d.domElement.toDataURL("image/png"); a.download="pulse-snapshot.png"; a.click();
-    } else if(window.html2canvas){
-      html2canvas($("chartWrap"), {backgroundColor:"#060c0e"}).then(canvas=>{
-        const a=document.createElement("a"); a.href=canvas.toDataURL("image/png"); a.download="pulse-snapshot.png"; a.click();
-      });
-    } else {
-      alert("Snapshot needs a moment to load — try again in a second, or switch to 3D Pulse view and snapshot from there.");
+  $("skipSundaysCheck").addEventListener("change", e=>{ state.skipNonWorking = e.target.checked; });
+
+  // ---------- Export video (3D view) ----------
+  $("exportVideoBtn").addEventListener("click", ()=>{
+    if(state.view!=="3d" || !renderer3d){ alert("Switch to the 3D Pulse view first — video export captures that view."); return; }
+    if(!state.tasks.length) return;
+    const quality = parseInt($("videoQuality").value,10);
+    const dims = { 720:[1280,720], 1080:[1920,1080], 2160:[3840,2160] }[quality];
+    const btn = $("exportVideoBtn");
+    const prevSize = { w:renderer3d.domElement.width, h:renderer3d.domElement.height };
+    pause();
+    state.currentDay = 0;
+    renderer3d.setSize(dims[0], dims[1], false);
+    camera3d.aspect = dims[0]/dims[1];
+    camera3d.updateProjectionMatrix();
+    updateFrameVisuals();
+
+    let stream, mimeType = "video/webm;codecs=vp9";
+    if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = "video/webm;codecs=vp8";
+    if(!MediaRecorder.isTypeSupported(mimeType)) mimeType = "video/webm";
+    try{ stream = renderer3d.domElement.captureStream(30); }
+    catch(e){ alert("This browser doesn't support recording a canvas. Try Chrome or Edge."); restoreSize(); return; }
+
+    const chunks = [];
+    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: quality>=2160 ? 40000000 : quality>=1080 ? 12000000 : 6000000 });
+    recorder.ondataavailable = e=>{ if(e.data.size) chunks.push(e.data); };
+    recorder.onstop = ()=>{
+      const blob = new Blob(chunks, { type:"video/webm" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `pulse-${quality}p.webm`;
+      a.click();
+      restoreSize();
+      btn.textContent = "Export video (3D view)"; btn.disabled = false;
+    };
+    function restoreSize(){
+      renderer3d.setSize(prevSize.w, prevSize.h, false);
+      resize3D();
     }
+    state.recorder = recorder;
+    btn.disabled = true; btn.textContent = "Recording…";
+    recorder.start();
+    play();
   });
 
   // ---------- Click-to-show-dates ----------
@@ -1005,6 +1025,8 @@
     camera3d = new THREE.PerspectiveCamera(45, w/h, 0.1, 500);
 
     renderer3d = new THREE.WebGLRenderer({ antialias:true, logarithmicDepthBuffer:true });
+    renderer3d.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer3d.toneMappingExposure = 1.0;
     renderer3d.setSize(w,h);
     renderer3d.domElement.style.width = "100%";
     renderer3d.domElement.style.height = "100%";
@@ -1170,7 +1192,7 @@
         mesh.scale.x = effWidth;
         mesh.position.x = u.x + effWidth/2;
         const active = state.currentDay>=sD && state.currentDay<=eD;
-        mesh.material.emissiveIntensity = active ? 1.4 + Math.sin(performance.now()/180)*0.5 : u.baseEmissive;
+        mesh.material.emissiveIntensity = active ? 0.55 + Math.sin(performance.now()/180)*0.2 : u.baseEmissive;
         if(active){ leadMesh=mesh; leadWorld = new THREE.Vector3(u.x+effWidth, mesh.position.y+0.8, mesh.position.z); }
       }
     });
@@ -1178,7 +1200,7 @@
     if(glowLight){
       if(leadWorld){
         glowLight.position.copy(leadWorld);
-        glowLight.intensity = 2.2 + Math.sin(performance.now()/150)*0.8;
+        glowLight.intensity = 1.1 + Math.sin(performance.now()/150)*0.4;
       } else {
         glowLight.intensity = 0;
       }
