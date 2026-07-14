@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -155,9 +155,20 @@
   @keyframes completeFlash{ 0%{ filter:brightness(1); } 35%{ filter:brightness(1.9); box-shadow:0 0 26px 8px rgba(45,212,191,.95); } 100%{ filter:brightness(1); } }
   .bar-fill.completed-flash{ animation: completeFlash .7s ease-out; }
 
-  #donutSvg{ width:100%; height:auto; }
-  .donut-legend-row{ display:flex; align-items:center; gap:6px; margin-bottom:4px; font-size:11px; color:var(--text-mute); }
-  .donut-swatch{ width:8px; height:8px; border-radius:2px; flex:none; }
+  .bar-chart-row{ margin-bottom:11px; }
+  .bar-chart-label{ display:flex; justify-content:space-between; font-size:11.5px; color:var(--text-mute); margin-bottom:3px; }
+  .bar-chart-pct{ font-family:var(--datefont); color:var(--text); }
+  .bar-chart-track{ height:8px; border-radius:4px; background:var(--grid); overflow:hidden; }
+  .bar-chart-fill{ height:100%; border-radius:4px; transition:width .3s ease; }
+  .kpi-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .kpi-cell{ background:#0d1617; border:1px solid var(--border); border-radius:8px; padding:8px 10px; }
+  .kpi-cell .kv{ font-family:var(--datefont); font-size:15px; color:var(--text); }
+  .kpi-cell .kl{ font-size:10px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em; margin-top:2px; }
+  .kpi-cell.warn .kv{ color:var(--red); }
+  .kpi-cell.good .kv{ color:var(--cyan); }
+  #rocketTrack{ position:relative; height:22px; background:#0a1213; border-bottom:1px solid var(--border); overflow:visible; }
+  #rocketFill{ position:absolute; left:0; top:0; bottom:0; background:linear-gradient(90deg, rgba(45,212,191,.05), rgba(45,212,191,.25)); width:0%; transition:width .15s linear; }
+  #rocketMarker{ position:absolute; top:50%; left:0%; transform:translate(-50%,-50%); font-size:15px; filter:drop-shadow(0 0 6px var(--amber)); transition:left .15s linear; z-index:2; }
   #hud3d b{ color:var(--amber); }
 
   ::-webkit-scrollbar{ width:10px; height:10px; }
@@ -231,14 +242,15 @@
     <div class="legend-item"><span class="legend-swatch" style="background:var(--red); height:4px; border-radius:2px;"></span> Thin bar = updated/actual dates</div>
   </div>
 
+  <div class="card" id="kpiCard" style="display:none;"></div>
+
   <div class="card" id="donutCard" style="display:none;">
     <h2>Progress</h2>
     <select id="donutGroupBy" style="margin-bottom:10px;">
       <option value="group">By Area / Group</option>
       <option value="phase">By Phase</option>
     </select>
-    <svg id="donutSvg" viewBox="0 0 160 160"></svg>
-    <div id="donutLegend" style="margin-top:8px;"></div>
+    <div id="barChart"></div>
   </div>
 
   <div class="card" id="insightsCard" style="display:none;"></div>
@@ -262,6 +274,10 @@
     </div>
     <div style="width:14px;"></div>
     <div id="dateReadout">—</div>
+  </div>
+  <div id="rocketTrack" style="display:none;">
+    <div id="rocketFill"></div>
+    <div id="rocketMarker">🚀</div>
   </div>
 
   <div class="screen active" id="emptyScreen" style="flex-direction:column; gap:6px;">
@@ -448,6 +464,7 @@
     if(!matched){ alert("No task names matched between your schedules — comparison needs the same task/area names in both files."); }
     renderCompareSummary();
     renderChart();
+    renderKPI();
   }
   function renderCompareSummary(){
     const el = $("compareSummary");
@@ -462,6 +479,31 @@
       return `<div class="compare-row"><span>${escapeHtml(t.name)}</span><span class="delta ${cls}">${label}</span></div>`;
     }).join("");
     el.innerHTML = html;
+  }
+
+  function kpiCell(label, value, cls){
+    return `<div class="kpi-cell ${cls||""}"><div class="kv">${escapeHtml(String(value))}</div><div class="kl">${escapeHtml(label)}</div></div>`;
+  }
+  function renderKPI(){
+    const card = $("kpiCard");
+    if(!card) return;
+    if(!state.tasks.length){ card.style.display="none"; return; }
+    card.style.display = "block";
+    let html = "<h2>Overview</h2><div class=\"kpi-grid\">";
+    html += kpiCell("Contract start", fmtDate(state.minDate));
+    html += kpiCell("Contract finish", fmtDate(state.maxDate));
+    if(state.baseline){
+      const matched = state.tasks.filter(t=>t.deltaDays!==undefined);
+      const maxDelay = matched.length ? Math.max(...matched.map(t=>t.deltaDays)) : 0;
+      const forecast = new Date(state.maxDate.getTime() + Math.max(0,maxDelay)*dayMs);
+      html += kpiCell("Forecast finish", fmtDate(forecast), maxDelay>3?"warn":"good");
+      html += kpiCell("Delay / ahead", maxDelay>0?`+${maxDelay}d`:(maxDelay<0?`${maxDelay}d`:"On time"), maxDelay>3?"warn":(maxDelay<0?"good":""));
+    } else {
+      html += kpiCell("Conflicts", state.tasks.filter(t=>t.conflict).length, state.tasks.some(t=>t.conflict)?"warn":"good");
+      html += kpiCell("Critical items", (state.criticalChain||[]).length);
+    }
+    html += "</div>";
+    card.innerHTML = html;
   }
 
   function normHeader(h){ return String(h).toLowerCase().replace(/[^a-z]/g,""); }
@@ -717,8 +759,10 @@
     $("projMeta").textContent = `${fmtDate(state.minDate)} → ${fmtDate(state.maxDate)}`;
     const hasPhases = tasks.some(t=>t.phase);
     $("donutGroupBy").querySelector('option[value="phase"]').disabled = !hasPhases;
-    renderDonut();
+    renderBarChart();
     renderInsights(tasks);
+    renderKPI();
+    $("rocketTrack").style.display = "block";
   }
 
   function setScreen(id){
@@ -845,8 +889,11 @@
       el.style.borderColor = reached ? "var(--cyan)" : "var(--grid-strong)";
     });
     $("scrubSlider").value = Math.round((state.currentDay/state.totalDays)*100);
+    const overallPct = (state.currentDay/state.totalDays)*100;
+    $("rocketFill").style.width = overallPct+"%";
+    $("rocketMarker").style.left = overallPct+"%";
     update3DFrame();
-    renderDonut();
+    renderBarChart();
   }
 
   // ---------- Audio beep on task completion ----------
@@ -864,7 +911,7 @@
     osc.start(t); osc.stop(t+0.26);
   }
 
-  // ---------- Donut progress ----------
+  // ---------- Progress bar chart ----------
   function computeFrac(t){
     if(t.milestone){ const sD=daysBetween(state.minDate,t.start); return state.currentDay>=sD?1:0; }
     const sD=daysBetween(state.minDate,t.start), eD=daysBetween(state.minDate,t.finish);
@@ -878,14 +925,7 @@
     }
     return groupColor(key);
   }
-  function polarToXY(cx,cy,r,deg){ const rad=deg*Math.PI/180; return { x:cx+r*Math.cos(rad), y:cy+r*Math.sin(rad) }; }
-  function arcPath(cx,cy,r,startDeg,endDeg,color,strokeW,opacity,pathLenPct){
-    const s=polarToXY(cx,cy,r,startDeg), e=polarToXY(cx,cy,r,endDeg);
-    const largeArc = (endDeg-startDeg)>180?1:0;
-    const d = `M${s.x.toFixed(2)},${s.y.toFixed(2)} A${r},${r} 0 ${largeArc} 1 ${e.x.toFixed(2)},${e.y.toFixed(2)}`;
-    return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${strokeW}" stroke-linecap="round" opacity="${opacity}" pathLength="100" stroke-dasharray="${pathLenPct} ${100-pathLenPct}"/>`;
-  }
-  function renderDonut(){
+  function renderBarChart(){
     if(!state.tasks || !state.tasks.length) return;
     const sel = $("donutGroupBy"); if(!sel) return;
     const groupBy = sel.value;
@@ -897,29 +937,19 @@
       buckets[key].dur += dur;
       buckets[key].weighted += dur*computeFrac(t);
     });
-    const totalDur = order.reduce((s,k)=>s+buckets[k].dur,0) || 1;
-    const cx=80, cy=80, r=58, strokeW=15, gapDeg=3;
-    let angle=-90, out="", overallW=0, overallD=0;
+    let out = "";
     order.forEach(k=>{
       const b = buckets[k];
-      const share = b.dur/totalDur;
-      const arcDeg = Math.max(2, share*360 - gapDeg);
+      const pct = Math.max(0, Math.min(100, Math.round((b.weighted/b.dur)*100)));
       const color = donutColor(k, groupBy);
-      out += arcPath(cx,cy,r,angle,angle+arcDeg,color,strokeW,0.22,100);
-      const progPct = Math.max(0, Math.min(100, (b.weighted/b.dur)*100));
-      out += arcPath(cx,cy,r,angle,angle+arcDeg,color,strokeW,1,progPct);
-      angle += share*360;
-      overallW += b.weighted; overallD += b.dur;
+      out += `<div class="bar-chart-row">
+        <div class="bar-chart-label"><span>${escapeHtml(k)}</span><span class="bar-chart-pct">${pct}%</span></div>
+        <div class="bar-chart-track"><div class="bar-chart-fill" style="width:${pct}%; background:${color};"></div></div>
+      </div>`;
     });
-    const overallPct = Math.round((overallW/overallD)*100);
-    out += `<text x="80" y="76" text-anchor="middle" font-size="22" fill="var(--text)" font-family="var(--sans)" font-weight="600">${overallPct}%</text><text x="80" y="94" text-anchor="middle" font-size="9" fill="var(--text-faint)" font-family="var(--sans)">overall</text>`;
-    $("donutSvg").innerHTML = out;
-    $("donutLegend").innerHTML = order.map(k=>{
-      const pct = Math.round((buckets[k].weighted/buckets[k].dur)*100);
-      return `<div class="donut-legend-row"><span class="donut-swatch" style="background:${donutColor(k,groupBy)}"></span>${escapeHtml(k)} — ${pct}%</div>`;
-    }).join("");
+    $("barChart").innerHTML = out;
   }
-  $("donutGroupBy") && $("donutGroupBy").addEventListener("change", renderDonut);
+  $("donutGroupBy") && $("donutGroupBy").addEventListener("change", renderBarChart);
 
   function isNonWorking(dayOffset){
     if(!state.minDate) return false;
@@ -1042,7 +1072,7 @@
     group3d = new THREE.Group();
     scene3d.add(group3d);
 
-    const rowSpacing = 2.4;
+    const rowSpacing = 3.6;
     const timeScale = Math.min(3, Math.max(0.06, 80/Math.max(1,state.totalDays)));
     let rowIdx = 0;
     const rowOf = {};
@@ -1129,7 +1159,7 @@
       const o = state._3d.orbit;
       o.theta -= dx*0.006;
       o.phi -= dy*0.006;
-      o.phi = Math.max(0.12, Math.min(Math.PI-0.12, o.phi));
+      o.phi = Math.max(0.35, Math.min(Math.PI-0.35, o.phi));
       o.lastInteract = performance.now();
     });
     window.addEventListener("pointerup", ()=>{ dragging=false; el.style.cursor="grab"; });
