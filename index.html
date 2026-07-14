@@ -1,4 +1,4 @@
-!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -166,9 +166,12 @@
   .kpi-cell .kl{ font-size:10px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em; margin-top:2px; }
   .kpi-cell.warn .kv{ color:var(--red); }
   .kpi-cell.good .kv{ color:var(--cyan); }
-  #rocketTrack{ position:relative; height:22px; background:#0a1213; border-bottom:1px solid var(--border); overflow:visible; }
+  #rocketTrack{ position:relative; height:26px; background:#0a1213; border-bottom:1px solid var(--border); overflow:visible; }
   #rocketFill{ position:absolute; left:0; top:0; bottom:0; background:linear-gradient(90deg, rgba(45,212,191,.05), rgba(45,212,191,.25)); width:0%; transition:width .15s linear; }
-  #rocketMarker{ position:absolute; top:50%; left:0%; transform:translate(-50%,-50%); font-size:15px; filter:drop-shadow(0 0 6px var(--amber)); transition:left .15s linear; z-index:2; }
+  #rocketMarker{ position:absolute; top:50%; left:0%; transform:translate(-50%,-50%); width:20px; height:20px; transition:left .15s linear; z-index:3; filter:drop-shadow(0 0 5px var(--amber)); }
+  #rocketMarker svg{ width:100%; height:100%; display:block; transform:rotate(90deg); }
+  #rocketDateTag{ position:absolute; top:50%; left:0%; transform:translate(calc(-100% - 16px), -50%); background:var(--panel-2); border:1px solid var(--amber); color:var(--text); font-family:var(--datefont); font-size:11px; padding:2px 8px; border-radius:5px; white-space:nowrap; transition:left .15s linear; z-index:2; }
+  #rocketDateTag::after{ content:""; position:absolute; top:50%; left:100%; width:14px; height:1.5px; background:var(--amber); transform:translateY(-50%); box-shadow:0 0 4px var(--amber); }
   #hud3d b{ color:var(--amber); }
 
   ::-webkit-scrollbar{ width:10px; height:10px; }
@@ -277,7 +280,16 @@
   </div>
   <div id="rocketTrack" style="display:none;">
     <div id="rocketFill"></div>
-    <div id="rocketMarker">🚀</div>
+    <div id="rocketDateTag">—</div>
+    <div id="rocketMarker">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path d="M12 2 C15 5 16.5 9 16.5 13 L16.5 17 L12 20 L7.5 17 L7.5 13 C7.5 9 9 5 12 2 Z" fill="var(--amber)"/>
+        <circle cx="12" cy="10" r="2" fill="#052220"/>
+        <path d="M7.5 14 L4 18 L7.5 17 Z" fill="var(--cyan)"/>
+        <path d="M16.5 14 L20 18 L16.5 17 Z" fill="var(--cyan)"/>
+        <path d="M10.5 18 L12 22 L13.5 18 Z" fill="var(--red)"/>
+      </svg>
+    </div>
   </div>
 
   <div class="screen active" id="emptyScreen" style="flex-direction:column; gap:6px;">
@@ -892,6 +904,8 @@
     const overallPct = (state.currentDay/state.totalDays)*100;
     $("rocketFill").style.width = overallPct+"%";
     $("rocketMarker").style.left = overallPct+"%";
+    $("rocketDateTag").style.left = overallPct+"%";
+    $("rocketDateTag").textContent = fmtDate(new Date(state.minDate.getTime()+state.currentDay*dayMs));
     update3DFrame();
     renderBarChart();
   }
